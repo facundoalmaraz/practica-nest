@@ -16,6 +16,7 @@ Este proyecto es una aplicación de gestión de concesionarios de autos construi
 10. [Exception Filters](#exception-filters)
 11. [Métodos HTTP (GET, POST, PATCH, DELETE)](#métodos-http)
 12. [DTOs y Validación de Información](#dtos-y-validación-de-información)
+13. [Servicio SEED - Carga de Datos Iniciales](#servicio-seed---carga-de-datos-iniciales)
 
 ---
 
@@ -69,7 +70,30 @@ nest g controller nombre-controlador
 
 # Generar un servicio
 nest g service nombre-servicio
+
+# Generar un recurso completo (CRUD) - RECOMENDADO
+nest g resource nombre-recurso
 ```
+
+**Nota sobre `nest g resource`:**
+El comando `nest g resource` es muy potente porque genera automáticamente:
+
+- ✅ Módulo completo
+- ✅ Controlador con todos los métodos HTTP (GET, POST, PATCH, DELETE)
+- ✅ Servicio con métodos CRUD básicos
+- ✅ DTOs de creación y actualización
+- ✅ Entidad/Interface
+- ✅ Estructura de carpetas organizada
+
+**Ejemplo:**
+
+```bash
+nest g resource brands
+# Pregunta: ¿Qué tipo de transporte prefieres? REST API
+# Pregunta: ¿Quieres generar puntos de entrada CRUD? Yes
+```
+
+Esto genera toda la estructura necesaria para un CRUD completo en segundos.
 
 ---
 
@@ -82,10 +106,31 @@ car-dealership/
 ├── src/
 │   ├── main.ts              # Punto de entrada de la aplicación
 │   ├── app.module.ts        # Módulo raíz de la aplicación
-│   └── cars/
-│       ├── cars.module.ts   # Módulo de autos
-│       ├── cars.controller.ts # Controlador de autos
-│       └── cars.service.ts  # Servicio de autos
+│   ├── cars/
+│   │   ├── cars.module.ts   # Módulo de autos
+│   │   ├── cars.controller.ts # Controlador de autos
+│   │   ├── cars.service.ts  # Servicio de autos
+│   │   ├── interfaces/
+│   │   │   └── car.interface.ts
+│   │   └── DTOs/
+│   │       ├── create-car.dto.ts
+│   │       └── update-car.dto.ts
+│   ├── brands/
+│   │   ├── brands.module.ts   # Módulo de marcas
+│   │   ├── brands.controller.ts # Controlador de marcas
+│   │   ├── brands.service.ts  # Servicio de marcas
+│   │   ├── entities/
+│   │   │   └── brand.entity.ts
+│   │   └── dto/
+│   │       ├── create-brand.dto.ts
+│   │       └── update-brand.dto.ts
+│   └── seed/
+│       ├── seed.module.ts     # Módulo de seed
+│       ├── seed.controller.ts # Controlador de seed
+│       ├── seed.service.ts    # Servicio de seed
+│       └── data/
+│           ├── brand.seed.ts
+│           └── cars.seed.ts
 ├── dist/                    # Código compilado (JavaScript)
 ├── test/                    # Tests e2e
 ├── package.json             # Dependencias del proyecto
@@ -95,6 +140,7 @@ car-dealership/
 ### Explicación de cada archivo:
 
 #### `main.ts`
+
 Es el punto de entrada de la aplicación. Aquí se crea la instancia de NestJS y se inicia el servidor.
 
 ```typescript
@@ -109,11 +155,13 @@ bootstrap();
 ```
 
 **¿Qué hace?**
+
 - Importa `NestFactory` para crear la aplicación
 - Crea una instancia de la app usando `AppModule` como módulo raíz
 - Inicia el servidor en el puerto 3000 (o el definido en `process.env.PORT`)
 
 #### `app.module.ts`
+
 Es el módulo raíz que importa todos los demás módulos de la aplicación.
 
 ```typescript
@@ -127,10 +175,23 @@ export class AppModule {}
 ```
 
 **Propiedades del decorador `@Module`:**
+
 - `imports`: Módulos que este módulo necesita
 - `controllers`: Controladores que pertenecen a este módulo
 - `providers`: Servicios/proveedores disponibles en este módulo
 - `exports`: Lo que este módulo exporta para que otros módulos lo usen
+
+**Ejemplo con múltiples módulos:**
+
+```typescript
+@Module({
+  imports: [CarsModule, BrandsModule, SeedModule],
+  controllers: [],
+  providers: [],
+  exports: [],
+})
+export class AppModule {}
+```
 
 ---
 
@@ -152,12 +213,13 @@ Un **módulo** es una clase decorada con `@Module()` que organiza el código rel
 ```typescript
 @Module({
   controllers: [CarsController],
-  providers: [CarsService]
+  providers: [CarsService],
 })
 export class CarsModule {}
 ```
 
 **¿Qué hace?**
+
 - Declara que `CarsController` manejará las rutas HTTP
 - Declara que `CarsService` es un proveedor disponible para inyección
 - Todo lo que está en este módulo puede usar `CarsService`
@@ -197,6 +259,7 @@ export class CarsController {
 ```
 
 **¿Qué hace?**
+
 - `@Controller('cars')`: Define que todas las rutas empezarán con `/cars`
 - `@Get()`: Maneja peticiones GET a `/cars`
 - `@Get(':id')`: Maneja peticiones GET a `/cars/:id`
@@ -247,6 +310,7 @@ export class CarsService {
 ```
 
 **¿Qué hace?**
+
 - `@Injectable()`: Marca la clase como inyectable (puede ser usada con DI)
 - Almacena datos en memoria (en producción usarías una base de datos)
 - Implementa métodos para buscar autos
@@ -270,6 +334,7 @@ La **Inyección de Dependencias** es un patrón de diseño donde las dependencia
 ### Cómo funciona en NestJS:
 
 NestJS tiene un **contenedor de inyección de dependencias** integrado que:
+
 - Crea instancias de servicios automáticamente
 - Las inyecta donde se necesiten
 - Gestiona el ciclo de vida de las instancias
@@ -297,6 +362,7 @@ export class CarsController {
 ```
 
 **Problemas:**
+
 - Difícil de testear (no puedes inyectar un mock)
 - Acoplamiento fuerte
 - Si `CarsService` necesita dependencias, tienes que crearlas manualmente
@@ -312,6 +378,7 @@ export class CarsController {
 ```
 
 **Ventajas:**
+
 - NestJS crea e inyecta `CarsService` automáticamente
 - Fácil de testear (puedes inyectar un mock)
 - Desacoplamiento total
@@ -319,20 +386,23 @@ export class CarsController {
 ### Proceso paso a paso:
 
 1. **Definir el servicio como `@Injectable()`**:
+
 ```typescript
 @Injectable()
-export class CarsService { }
+export class CarsService {}
 ```
 
 2. **Registrarlo como `provider` en el módulo**:
+
 ```typescript
 @Module({
-  providers: [CarsService] // ← NestJS sabe que puede crear instancias
+  providers: [CarsService], // ← NestJS sabe que puede crear instancias
 })
 export class CarsModule {}
 ```
 
 3. **Inyectarlo en el constructor**:
+
 ```typescript
 @Controller('cars')
 export class CarsController {
@@ -374,6 +444,56 @@ export class CarsService {
 
 **Regla importante**: Ambos servicios deben estar en el mismo módulo (o el módulo debe importar el módulo que exporta el servicio).
 
+### Exportar servicios para uso en otros módulos:
+
+Para que un servicio pueda ser usado en otro módulo, debes **exportarlo** desde su módulo:
+
+```typescript
+// brands.module.ts
+@Module({
+  controllers: [BrandsController],
+  providers: [BrandsService],
+  exports: [BrandsService], // ← Exporta el servicio
+})
+export class BrandsModule {}
+```
+
+Ahora otros módulos pueden importar `BrandsModule` y usar `BrandsService`:
+
+```typescript
+// seed.module.ts
+@Module({
+  controllers: [SeedController],
+  providers: [SeedService],
+  imports: [CarsModule, BrandsModule], // ← Importa los módulos
+})
+export class SeedModule {}
+```
+
+```typescript
+// seed.service.ts
+@Injectable()
+export class SeedService {
+  constructor(
+    private readonly carsService: CarsService, // ← Inyecta desde CarsModule
+    private readonly brandsService: BrandsService, // ← Inyecta desde BrandsModule
+  ) {}
+
+  runSeed() {
+    this.carsService.fillCarsWithSeedData(CARS_SEED);
+    this.brandsService.fillBrandsWithSeedData(BRANDS_SEED);
+    return 'Seed executed successfully';
+  }
+}
+```
+
+**Flujo completo:**
+
+1. `BrandsModule` exporta `BrandsService`
+2. `SeedModule` importa `BrandsModule`
+3. `SeedService` puede inyectar `BrandsService` en su constructor
+4. NestJS resuelve automáticamente las dependencias
+
 ---
 
 ## Decoradores
@@ -387,17 +507,19 @@ Un **decorador** es una función especial que modifica o añade metadatos a clas
 #### 1. Decoradores de Clase
 
 ##### `@Module()`
+
 Define un módulo de NestJS.
 
 ```typescript
 @Module({
   controllers: [CarsController],
-  providers: [CarsService]
+  providers: [CarsService],
 })
 export class CarsModule {}
 ```
 
 ##### `@Controller('ruta')`
+
 Define un controlador y su ruta base.
 
 ```typescript
@@ -406,6 +528,7 @@ export class CarsController {}
 ```
 
 ##### `@Injectable()`
+
 Marca una clase como inyectable (puede ser usada con DI).
 
 ```typescript
@@ -441,6 +564,7 @@ deleteCar() { }
 Estos decoradores extraen datos de la petición HTTP:
 
 ##### `@Param()`
+
 Extrae parámetros de la URL.
 
 ```typescript
@@ -451,6 +575,7 @@ getCarById(@Param('id') id: string) {
 ```
 
 ##### `@Body()`
+
 Extrae el cuerpo de la petición (JSON).
 
 ```typescript
@@ -461,6 +586,7 @@ createCar(@Body() body: any) {
 ```
 
 ##### `@Query()`
+
 Extrae query parameters de la URL.
 
 ```typescript
@@ -482,25 +608,26 @@ Los decoradores son **funciones que se ejecutan en tiempo de compilación** y a�
 ### Ejemplo completo:
 
 ```typescript
-@Controller('cars')  // ← Decorador de clase: define ruta base
+@Controller('cars') // ← Decorador de clase: define ruta base
 export class CarsController {
   constructor(private readonly carsService: CarsService) {}
   // ↑ Inyección de dependencia
 
-  @Get()  // ← Decorador de método: define método HTTP y ruta
+  @Get() // ← Decorador de método: define método HTTP y ruta
   getAllCars() {
     return this.carsService.findAllCars();
   }
 
-  @Get(':id')  // ← Decorador de método con parámetro dinámico
+  @Get(':id') // ← Decorador de método con parámetro dinámico
   getCarById(
-    @Param('id', ParseIntPipe) id: number  // ← Decorador de parámetro
+    @Param('id', ParseIntPipe) id: number, // ← Decorador de parámetro
   ) {
     return this.carsService.findOneById(id);
   }
 
-  @Post()  // ← Decorador de método
-  createCar(@Body() body: any) {  // ← Decorador de parámetro
+  @Post() // ← Decorador de método
+  createCar(@Body() body: any) {
+    // ← Decorador de parámetro
     return body;
   }
 }
@@ -530,6 +657,7 @@ Un **Pipe** es una clase que transforma o valida datos antes de que lleguen al h
 ### Pipes integrados de NestJS:
 
 #### `ParseIntPipe`
+
 Convierte un string a número y valida que sea un entero válido.
 
 ```typescript
@@ -541,6 +669,7 @@ getCarById(@Param('id', ParseIntPipe) id: number) {
 ```
 
 **¿Qué hace?**
+
 - Convierte `"123"` → `123` (número)
 - Si no puede convertir, lanza una excepción automáticamente
 - Valida que sea un número entero válido
@@ -584,6 +713,7 @@ Un **Exception Filter** es un mecanismo que captura excepciones lanzadas en la a
 ### Excepciones integradas de NestJS:
 
 #### `NotFoundException`
+
 Se lanza cuando no se encuentra un recurso.
 
 ```typescript
@@ -591,14 +721,14 @@ Se lanza cuando no se encuentra un recurso.
 export class CarsService {
   findOneById(id: number) {
     const car = this.cars.find((car) => car.id === id);
-    
+
     if (!car) {
       throw new NotFoundException(`Car with id ${id} not found`);
       // ↑ Esto automáticamente devuelve:
       // Status: 404 Not Found
       // Body: { "statusCode": 404, "message": "Car with id 123 not found" }
     }
-    
+
     return car;
   }
 }
@@ -616,6 +746,7 @@ export class CarsService {
 ### ¿Qué hace NestJS automáticamente?
 
 Cuando lanzas una excepción, NestJS:
+
 1. Captura la excepción
 2. Convierte el código de estado HTTP apropiado
 3. Devuelve una respuesta JSON con el mensaje de error
@@ -659,6 +790,7 @@ createCar(@Body() body: any) {
 ```
 
 **Ejemplo de petición:**
+
 ```bash
 POST /cars
 Content-Type: application/json
@@ -681,6 +813,7 @@ updateCar(@Body() body: any) {
 ```
 
 **Ejemplo de petición:**
+
 ```bash
 PATCH /cars/1
 Content-Type: application/json
@@ -742,15 +875,18 @@ deleteCar(@Param('id', ParseIntPipe) id: number) {
 
 ### 🏗️ Arquitectura
 
-- **Módulos**: Organizan el código
+- **Módulos**: Organizan el código y exportan servicios para otros módulos
 - **Controladores**: Manejan peticiones HTTP
-- **Servicios**: Contienen lógica de negocio
+- **Servicios**: Contienen lógica de negocio y pueden inyectarse entre sí
+- **SEED**: Servicio para cargar datos iniciales
 
 ### 🔌 Inyección de Dependencias
 
 - Las dependencias se inyectan en el constructor
 - NestJS las crea y gestiona automáticamente
 - Facilita testing y desacoplamiento
+- Los servicios se exportan desde módulos para uso en otros módulos
+- Los servicios pueden inyectar otros servicios
 
 ### 🎨 Decoradores
 
@@ -787,6 +923,7 @@ Un **DTO (Data Transfer Object)** es un objeto que define la estructura y valida
 ### Interfaces vs DTOs
 
 #### Interfaces
+
 Las **interfaces** definen la estructura de datos que se usa **dentro** de la aplicación.
 
 ```typescript
@@ -800,16 +937,25 @@ export interface Car {
 ```
 
 **Características:**
+
 - Solo definen tipos (no validación)
 - Se usan para tipado estático
 - No tienen lógica de validación en tiempo de ejecución
 
 #### DTOs
+
 Los **DTOs** definen y validan los datos que **recibe** la aplicación desde el exterior.
 
 ```typescript
 // src/cars/DTOs/create-car.dto.ts
-import { IsString, IsOptional, IsNumber, Min, Max, MinLength } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  Min,
+  Max,
+  MinLength,
+} from 'class-validator';
 
 export class CreateCarDto {
   @IsString({ message: 'La marca debe ser un string' })
@@ -828,6 +974,7 @@ export class CreateCarDto {
 ```
 
 **Características:**
+
 - Incluyen validación en tiempo de ejecución
 - Usan decoradores de `class-validator`
 - Se validan automáticamente con `ValidationPipe`
@@ -861,6 +1008,7 @@ getCarById(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
 ```
 
 **Versiones de UUID:**
+
 - `version: '4'`: UUID aleatorio (más común)
 - `version: '1'`: UUID basado en tiempo y MAC address
 
@@ -885,9 +1033,9 @@ async function bootstrap() {
 
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,              // Elimina campos que no están en el DTO
-      forbidNonWhitelisted: true,    // Lanza error si se envían campos extra
-      transform: true,               // Transforma automáticamente los tipos
+      whitelist: true, // Elimina campos que no están en el DTO
+      forbidNonWhitelisted: true, // Lanza error si se envían campos extra
+      transform: true, // Transforma automáticamente los tipos
       transformOptions: {
         enableImplicitConversion: true, // Convierte tipos implícitamente
       },
@@ -911,11 +1059,11 @@ async function bootstrap() {
 
 ```typescript
 import {
-  IsString,      // Valida que sea string
-  IsNumber,      // Valida que sea número
-  IsBoolean,      // Valida que sea booleano
-  IsOptional,    // Hace el campo opcional
-  IsUUID,        // Valida que sea UUID válido
+  IsString, // Valida que sea string
+  IsNumber, // Valida que sea número
+  IsBoolean, // Valida que sea booleano
+  IsOptional, // Hace el campo opcional
+  IsUUID, // Valida que sea UUID válido
 } from 'class-validator';
 
 export class CreateCarDto {
@@ -976,6 +1124,7 @@ app.useGlobalPipes(
 ```
 
 **Ventajas:**
+
 - ✅ No necesitas agregar `ValidationPipe` en cada endpoint
 - ✅ Validación consistente en toda la aplicación
 - ✅ Menos código repetitivo
@@ -1057,6 +1206,7 @@ createCar(createCarDto: CreateCarDto) {
 ```
 
 **Ejemplo de petición:**
+
 ```bash
 POST /cars
 Content-Type: application/json
@@ -1069,6 +1219,7 @@ Content-Type: application/json
 ```
 
 **Si falta un campo requerido:**
+
 ```json
 {
   "statusCode": 400,
@@ -1107,6 +1258,7 @@ export class UpdateCarDto {
 ```
 
 **Características importantes:**
+
 - Todos los campos son opcionales (`@IsOptional()`)
 - Permite actualizar solo los campos que se envían
 - Valida que el `id` sea UUID si se proporciona
@@ -1158,6 +1310,7 @@ updateCar(id: string, updateCarDto: UpdateCarDto) {
 ```
 
 **Ejemplo de petición (actualizar solo el modelo):**
+
 ```bash
 PATCH /cars/550e8400-e29b-41d4-a716-446655440000
 Content-Type: application/json
@@ -1185,7 +1338,7 @@ deleteCar(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
 ```typescript
 deleteCar(id: string) {
   const car = this.findOneById(id); // Valida que exista
-  
+
   if (!car) {
     throw new NotFoundException(`Car with id ${id} not found`);
   }
@@ -1199,11 +1352,13 @@ deleteCar(id: string) {
 ```
 
 **Ejemplo de petición:**
+
 ```bash
 DELETE /cars/550e8400-e29b-41d4-a716-446655440000
 ```
 
 **Respuesta exitosa:**
+
 ```json
 {
   "message": "Car deleted successfully",
@@ -1216,52 +1371,174 @@ DELETE /cars/550e8400-e29b-41d4-a716-446655440000
 }
 ```
 
-### Estructura de Carpetas para DTOs
+### Estructura de Carpetas para DTOs y Entidades
+
+### Estructura para módulos generados con `nest g resource`:
 
 ```
 src/
-└── cars/
-    ├── cars.controller.ts
-    ├── cars.service.ts
-    ├── cars.module.ts
-    ├── interfaces/
-    │   └── car.interface.ts
-    └── DTOs/
-        ├── create-car.dto.ts
-        └── update-car.dto.ts
+├── cars/
+│   ├── cars.controller.ts
+│   ├── cars.service.ts
+│   ├── cars.module.ts
+│   ├── interfaces/
+│   │   └── car.interface.ts
+│   └── DTOs/
+│       ├── create-car.dto.ts
+│       └── update-car.dto.ts
+└── brands/
+    ├── brands.controller.ts
+    ├── brands.service.ts
+    ├── brands.module.ts
+    ├── entities/
+    │   └── brand.entity.ts
+    └── dto/
+        ├── create-brand.dto.ts
+        └── update-brand.dto.ts
 ```
 
 **Convenciones:**
-- Los DTOs van en una carpeta `DTOs/` dentro del módulo
+
+- Los DTOs van en una carpeta `dto/` o `DTOs/` dentro del módulo
 - Las interfaces van en una carpeta `interfaces/`
-- Nombres descriptivos: `create-car.dto.ts`, `update-car.dto.ts`
+- Las entidades van en una carpeta `entities/`
+- Nombres descriptivos: `create-brand.dto.ts`, `update-brand.dto.ts`
+
+**Diferencias entre Interfaces y Entidades:**
+
+- **Interfaces**: Definen tipos TypeScript para uso interno (ej: `Car`)
+- **Entidades**: Clases que representan modelos de datos, pueden tener lógica adicional (ej: `Brand`)
 
 ### Resumen de Conceptos Clave
 
 #### DTOs
+
 - ✅ Definen la estructura de datos de entrada
 - ✅ Incluyen validación con decoradores
 - ✅ Mejoran la seguridad y type safety
 
 #### UUID
+
 - ✅ Identificadores únicos y seguros
 - ✅ Se validan con `ParseUUIDPipe`
 - ✅ Se generan con la librería `uuid`
 
 #### ValidationPipe
+
 - ✅ Valida automáticamente los DTOs
 - ✅ Se puede configurar globalmente
 - ✅ Usa `class-validator` y `class-transformer`
 
 #### Decoradores de Validación
+
 - ✅ `@IsString()`, `@IsNumber()`, `@IsOptional()`
 - ✅ `@MinLength()`, `@MaxLength()`, `@Min()`, `@Max()`
 - ✅ `@IsUUID()` para validar UUIDs
 
 #### Actualización Parcial (PATCH)
+
 - ✅ Todos los campos del DTO son opcionales
 - ✅ Solo se actualizan los campos enviados
 - ✅ Se filtran propiedades `undefined` para no sobrescribir valores
+
+---
+
+## Servicio SEED - Carga de Datos Iniciales
+
+### ¿Qué es un servicio SEED?
+
+Un **servicio SEED** es un servicio que se encarga de cargar datos iniciales o de prueba en la aplicación. Es muy útil para:
+
+- ✅ Poblar la base de datos con datos de ejemplo
+- ✅ Resetear datos durante desarrollo
+- ✅ Cargar datos de configuración inicial
+
+### Estructura del servicio SEED:
+
+```typescript
+// src/seed/seed.service.ts
+@Injectable()
+export class SeedService {
+  constructor(
+    private readonly carsService: CarsService,
+    private readonly brandsService: BrandsService,
+  ) {}
+
+  runSeed() {
+    this.carsService.fillCarsWithSeedData(CARS_SEED);
+    this.brandsService.fillBrandsWithSeedData(BRANDS_SEED);
+    return 'Seed executed successfully';
+  }
+}
+```
+
+### Datos de seed:
+
+Los datos de seed se almacenan en archivos separados:
+
+```typescript
+// src/seed/data/brand.seed.ts
+import { Brand } from 'src/brands/entities/brand.entity';
+import { v4 as uuid } from 'uuid';
+
+export const BRANDS_SEED: Brand[] = [
+  {
+    id: uuid(),
+    name: 'Toyota',
+    createdAt: new Date().getTime(),
+  },
+  {
+    id: uuid(),
+    name: 'Ford',
+    createdAt: new Date().getTime(),
+  },
+];
+```
+
+### Controlador de seed:
+
+```typescript
+// src/seed/seed.controller.ts
+@Controller('seed')
+export class SeedController {
+  constructor(private readonly seedService: SeedService) {}
+
+  @Get()
+  runSeed() {
+    return this.seedService.runSeed();
+  }
+}
+```
+
+**Uso:**
+
+```bash
+GET /seed
+# Ejecuta el seed y carga todos los datos iniciales
+```
+
+### Métodos en servicios para recibir datos de seed:
+
+Los servicios deben tener métodos para recibir y reemplazar sus datos:
+
+```typescript
+// brands.service.ts
+fillBrandsWithSeedData(brands: Brand[]) {
+  this.brands = brands;
+}
+
+// cars.service.ts
+fillCarsWithSeedData(cars: Car[]) {
+  this.cars = cars;
+}
+```
+
+**Ventajas del servicio SEED:**
+
+- ✅ Centraliza la carga de datos iniciales
+- ✅ Fácil de ejecutar mediante endpoint HTTP
+- ✅ Reutiliza servicios existentes
+- ✅ Mantiene los datos de seed organizados en archivos separados
 
 ---
 
