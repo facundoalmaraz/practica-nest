@@ -17,6 +17,7 @@ Este proyecto es una aplicación de gestión de concesionarios de autos construi
 11. [Métodos HTTP (GET, POST, PATCH, DELETE)](#métodos-http)
 12. [DTOs y Validación de Información](#dtos-y-validación-de-información)
 13. [Servicio SEED - Carga de Datos Iniciales](#servicio-seed---carga-de-datos-iniciales)
+14. [Build de Producción](#build-de-producción)
 
 ---
 
@@ -131,7 +132,7 @@ car-dealership/
 │       └── data/
 │           ├── brand.seed.ts
 │           └── cars.seed.ts
-├── dist/                    # Código compilado (JavaScript)
+├── dist/                    # Código compilado (JavaScript) - Generado con `npm run build`
 ├── test/                    # Tests e2e
 ├── package.json             # Dependencias del proyecto
 └── tsconfig.json            # Configuración de TypeScript
@@ -1539,6 +1540,229 @@ fillCarsWithSeedData(cars: Car[]) {
 - ✅ Fácil de ejecutar mediante endpoint HTTP
 - ✅ Reutiliza servicios existentes
 - ✅ Mantiene los datos de seed organizados en archivos separados
+
+---
+
+## Build de Producción
+
+### ¿Qué es un Build de Producción?
+
+Un **build de producción** es el proceso de compilar el código TypeScript a JavaScript optimizado que se ejecutará en el entorno de producción. Este proceso:
+
+- ✅ Compila TypeScript a JavaScript
+- ✅ Elimina comentarios y código innecesario
+- ✅ Optimiza el código para mejor rendimiento
+- ✅ Genera archivos en la carpeta `dist/`
+
+### Comandos de Build
+
+#### Generar el build:
+
+```bash
+npm run build
+```
+
+Este comando ejecuta `nest build` que:
+
+1. Compila todos los archivos TypeScript de `src/` a JavaScript
+2. Genera archivos `.js`, `.js.map` (source maps) y `.d.ts` (definiciones de tipos)
+3. Guarda todo en la carpeta `dist/`
+4. Elimina el contenido anterior de `dist/` antes de compilar (configurado en `nest-cli.json`)
+
+#### Ejecutar en producción:
+
+```bash
+npm run start:prod
+```
+
+Este comando ejecuta `node dist/main`, que inicia la aplicación usando el código compilado de JavaScript.
+
+**Diferencia entre desarrollo y producción:**
+
+| Comando              | Descripción                         | Uso        |
+| -------------------- | ----------------------------------- | ---------- |
+| `npm run start:dev`  | Ejecuta con hot-reload (watch mode) | Desarrollo |
+| `npm run start:prod` | Ejecuta código compilado de `dist/` | Producción |
+
+### Configuración del Build
+
+#### `tsconfig.build.json`
+
+Este archivo extiende `tsconfig.json` y excluye archivos que no deben compilarse en producción:
+
+```json
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+}
+```
+
+**¿Qué excluye?**
+
+- `node_modules`: Dependencias externas
+- `test`: Archivos de pruebas
+- `dist`: Carpeta de build anterior
+- `**/*spec.ts`: Todos los archivos de test (`.spec.ts`)
+
+#### `nest-cli.json`
+
+Configuración del Nest CLI para el build:
+
+```json
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "compilerOptions": {
+    "deleteOutDir": true
+  }
+}
+```
+
+**Opciones importantes:**
+
+- `sourceRoot`: Carpeta fuente (`src/`)
+- `deleteOutDir: true`: Elimina la carpeta `dist/` antes de cada build (evita archivos obsoletos)
+
+#### `tsconfig.json` - Opciones de compilación
+
+Configuraciones relevantes para el build:
+
+```json
+{
+  "compilerOptions": {
+    "outDir": "./dist", // Carpeta de salida
+    "removeComments": true, // Elimina comentarios en producción
+    "sourceMap": true, // Genera source maps para debugging
+    "declaration": true, // Genera archivos .d.ts
+    "target": "ES2023" // Versión de JavaScript objetivo
+  }
+}
+```
+
+### Estructura después del Build
+
+Después de ejecutar `npm run build`, la estructura será:
+
+```
+car-dealership/
+├── src/                    # Código fuente (TypeScript)
+│   ├── main.ts
+│   ├── app.module.ts
+│   └── ...
+├── dist/                   # Código compilado (JavaScript) ← GENERADO
+│   ├── main.js
+│   ├── main.d.ts
+│   ├── main.js.map
+│   ├── app.module.js
+│   ├── app.module.d.ts
+│   ├── app.module.js.map
+│   └── ...
+└── package.json
+```
+
+**Tipos de archivos generados:**
+
+- `.js`: Código JavaScript compilado
+- `.d.ts`: Definiciones de tipos TypeScript
+- `.js.map`: Source maps para debugging
+
+### Proceso completo de despliegue
+
+#### 1. Preparar el build:
+
+```bash
+# Instalar solo dependencias de producción (opcional, para verificar)
+npm ci --production
+
+# Generar el build
+npm run build
+```
+
+#### 2. Verificar el build:
+
+```bash
+# Probar que el build funciona localmente
+npm run start:prod
+```
+
+#### 3. Desplegar:
+
+En producción, solo necesitas:
+
+- Carpeta `dist/`
+- Archivo `package.json`
+- Carpeta `node_modules` (solo dependencias de producción)
+
+**Estructura mínima para producción:**
+
+```
+produccion/
+├── dist/              # Código compilado
+├── node_modules/      # Solo dependencias de producción
+└── package.json
+```
+
+### Scripts de package.json relacionados
+
+```json
+{
+  "scripts": {
+    "build": "nest build", // Genera el build
+    "start": "nest start", // Inicia en modo desarrollo
+    "start:dev": "nest start --watch", // Desarrollo con hot-reload
+    "start:prod": "node dist/main" // Ejecuta build de producción
+  }
+}
+```
+
+### Ventajas del Build de Producción
+
+- ✅ **Rendimiento**: Código JavaScript optimizado, más rápido que TypeScript
+- ✅ **Seguridad**: No expone código fuente TypeScript
+- ✅ **Tamaño**: Código más pequeño (sin comentarios, optimizado)
+- ✅ **Compatibilidad**: JavaScript estándar que funciona en cualquier entorno Node.js
+- ✅ **Debugging**: Source maps permiten debugging del código original
+
+### Buenas Prácticas
+
+1. **Siempre hacer build antes de desplegar:**
+
+   ```bash
+   npm run build
+   ```
+
+2. **Verificar que el build funciona:**
+
+   ```bash
+   npm run start:prod
+   ```
+
+3. **No incluir `src/` en producción:**
+   - Solo necesitas `dist/` y `node_modules/`
+   - El código fuente TypeScript no es necesario en producción
+
+4. **Usar variables de entorno:**
+
+   ```typescript
+   await app.listen(process.env.PORT ?? 3000);
+   ```
+
+   Esto permite configurar el puerto en producción sin cambiar código.
+
+5. **Ignorar `dist/` en Git (si es necesario):**
+   ```gitignore
+   dist/
+   ```
+   Aunque generalmente se incluye para facilitar despliegues.
+
+### Resumen
+
+- ✅ `npm run build` compila TypeScript a JavaScript en `dist/`
+- ✅ `npm run start:prod` ejecuta el código compilado
+- ✅ El build excluye tests y archivos innecesarios
+- ✅ Solo necesitas `dist/` y `node_modules` en producción
+- ✅ El código compilado es más rápido y seguro
 
 ---
 
