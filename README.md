@@ -15,6 +15,7 @@ Este proyecto es una aplicación de gestión de concesionarios de autos construi
 9. [Pipes](#pipes)
 10. [Exception Filters](#exception-filters)
 11. [Métodos HTTP (GET, POST, PATCH, DELETE)](#métodos-http)
+12. [DTOs y Validación de Información](#dtos-y-validación-de-información)
 
 ---
 
@@ -772,14 +773,506 @@ deleteCar(@Param('id', ParseIntPipe) id: number) {
 
 ---
 
+## DTOs y Validación de Información
+
+### ¿Qué es un DTO?
+
+Un **DTO (Data Transfer Object)** es un objeto que define la estructura y validación de los datos que se transfieren entre el cliente y el servidor. Los DTOs nos permiten:
+
+- ✅ **Validar datos**: Asegurar que los datos recibidos cumplan con los requisitos
+- ✅ **Documentar**: Hacer explícita la estructura esperada de los datos
+- ✅ **Type Safety**: Aprovechar TypeScript para detectar errores en tiempo de compilación
+- ✅ **Transformación**: Convertir datos de un formato a otro
+
+### Interfaces vs DTOs
+
+#### Interfaces
+Las **interfaces** definen la estructura de datos que se usa **dentro** de la aplicación.
+
+```typescript
+// src/cars/interfaces/car.interface.ts
+export interface Car {
+  id: string;
+  brand: string;
+  model: string;
+  year: number;
+}
+```
+
+**Características:**
+- Solo definen tipos (no validación)
+- Se usan para tipado estático
+- No tienen lógica de validación en tiempo de ejecución
+
+#### DTOs
+Los **DTOs** definen y validan los datos que **recibe** la aplicación desde el exterior.
+
+```typescript
+// src/cars/DTOs/create-car.dto.ts
+import { IsString, IsOptional, IsNumber, Min, Max, MinLength } from 'class-validator';
+
+export class CreateCarDto {
+  @IsString({ message: 'La marca debe ser un string' })
+  readonly brand: string;
+
+  @IsString({ message: 'El modelo debe ser un string' })
+  @MinLength(3)
+  readonly model: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1900)
+  @Max(2025)
+  readonly year?: number;
+}
+```
+
+**Características:**
+- Incluyen validación en tiempo de ejecución
+- Usan decoradores de `class-validator`
+- Se validan automáticamente con `ValidationPipe`
+
+### UUID (Universally Unique Identifier)
+
+Un **UUID** es un identificador único de 128 bits que se usa para identificar recursos de forma única. Es más seguro que usar números secuenciales.
+
+#### ¿Por qué usar UUID?
+
+1. **Seguridad**: No se pueden adivinar IDs secuenciales
+2. **Distribución**: Únicos globalmente, incluso en sistemas distribuidos
+3. **Privacidad**: No revelan información sobre la cantidad de recursos
+
+#### Generar UUIDs en NestJS
+
+```typescript
+import { v4 as uuid } from 'uuid';
+
+const newId = uuid(); // Genera: "550e8400-e29b-41d4-a716-446655440000"
+```
+
+#### Validar UUIDs con ParseUUIDPipe
+
+```typescript
+@Get(':id')
+getCarById(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
+  // Si el id no es un UUID válido, NestJS lanza error automáticamente
+  return this.carsService.findOneById(id);
+}
+```
+
+**Versiones de UUID:**
+- `version: '4'`: UUID aleatorio (más común)
+- `version: '1'`: UUID basado en tiempo y MAC address
+
+### ValidationPipe - Class Validator y Class Transformer
+
+El **ValidationPipe** es un pipe integrado de NestJS que valida automáticamente los datos usando decoradores de `class-validator` y `class-transformer`.
+
+#### Instalación
+
+```bash
+npm install class-validator class-transformer
+```
+
+#### Configuración Global
+
+```typescript
+// src/main.ts
+import { ValidationPipe } from '@nestjs/common';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,              // Elimina campos que no están en el DTO
+      forbidNonWhitelisted: true,    // Lanza error si se envían campos extra
+      transform: true,               // Transforma automáticamente los tipos
+      transformOptions: {
+        enableImplicitConversion: true, // Convierte tipos implícitamente
+      },
+    }),
+  );
+
+  await app.listen(3000);
+}
+```
+
+**Opciones del ValidationPipe:**
+
+- `whitelist: true`: Elimina propiedades que no están definidas en el DTO
+- `forbidNonWhitelisted: true`: Lanza error si se envían propiedades no definidas
+- `transform: true`: Convierte automáticamente los tipos (string → number, etc.)
+- `disableErrorMessages: false`: Habilita mensajes de error personalizados
+
+#### Decoradores de Validación (class-validator)
+
+##### Validadores básicos
+
+```typescript
+import {
+  IsString,      // Valida que sea string
+  IsNumber,      // Valida que sea número
+  IsBoolean,      // Valida que sea booleano
+  IsOptional,    // Hace el campo opcional
+  IsUUID,        // Valida que sea UUID válido
+} from 'class-validator';
+
+export class CreateCarDto {
+  @IsString()
+  readonly brand: string;
+
+  @IsNumber()
+  readonly year: number;
+
+  @IsOptional()
+  @IsBoolean()
+  readonly isAvailable?: boolean;
+}
+```
+
+##### Validadores de longitud y rango
+
+```typescript
+import { MinLength, MaxLength, Min, Max } from 'class-validator';
+
+export class CreateCarDto {
+  @IsString()
+  @MinLength(3, { message: 'El modelo debe tener al menos 3 caracteres' })
+  @MaxLength(50)
+  readonly model: string;
+
+  @IsNumber()
+  @Min(1900, { message: 'El año debe ser mayor o igual a 1900' })
+  @Max(2025, { message: 'El año debe ser menor o igual a 2025' })
+  readonly year: number;
+}
+```
+
+##### Mensajes de error personalizados
+
+```typescript
+@IsString({ message: 'La marca debe ser un string' })
+readonly brand: string;
+
+@MinLength(3, { message: 'El modelo debe tener al menos 3 caracteres' })
+readonly model: string;
+```
+
+### Pipes Globales - A nivel de Aplicación
+
+Los **pipes globales** se aplican a **todos** los endpoints de la aplicación automáticamente.
+
+#### Configuración en main.ts
+
+```typescript
+// src/main.ts
+app.useGlobalPipes(
+  new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+  }),
+);
+```
+
+**Ventajas:**
+- ✅ No necesitas agregar `ValidationPipe` en cada endpoint
+- ✅ Validación consistente en toda la aplicación
+- ✅ Menos código repetitivo
+
+#### Pipes a nivel de Controlador
+
+```typescript
+@Controller('cars')
+@UsePipes(ValidationPipe) // Aplica a todos los endpoints de este controlador
+export class CarsController {}
+```
+
+#### Pipes a nivel de Endpoint
+
+```typescript
+@Post()
+@UsePipes(ValidationPipe) // Solo aplica a este endpoint
+createCar(@Body() createCarDto: CreateCarDto) {
+  return this.carsService.createCar(createCarDto);
+}
+```
+
+#### Pipes en parámetros específicos
+
+```typescript
+@Patch(':id')
+updateCar(
+  @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  @Body(ValidationPipe) updateCarDto: UpdateCarDto, // Pipe solo en este parámetro
+) {
+  return this.carsService.updateCar(id, updateCarDto);
+}
+```
+
+### Crear un nuevo carro (POST)
+
+#### DTO de Creación
+
+```typescript
+// src/cars/DTOs/create-car.dto.ts
+export class CreateCarDto {
+  @IsString({ message: 'La marca debe ser un string' })
+  readonly brand: string;
+
+  @IsString({ message: 'El modelo debe ser un string' })
+  @MinLength(3)
+  readonly model: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1900)
+  @Max(2025)
+  readonly year?: number;
+}
+```
+
+#### Controlador
+
+```typescript
+@Post()
+createCar(@Body() createCarDto: CreateCarDto) {
+  return this.carsService.createCar(createCarDto);
+}
+```
+
+#### Servicio
+
+```typescript
+createCar(createCarDto: CreateCarDto) {
+  const car: Car = {
+    id: uuid(), // Genera UUID automáticamente
+    brand: createCarDto.brand,
+    model: createCarDto.model,
+    year: createCarDto.year ?? new Date().getFullYear(), // Valor por defecto
+  };
+  this.cars.push(car);
+  return car;
+}
+```
+
+**Ejemplo de petición:**
+```bash
+POST /cars
+Content-Type: application/json
+
+{
+  "brand": "Tesla",
+  "model": "Model 3",
+  "year": 2023
+}
+```
+
+**Si falta un campo requerido:**
+```json
+{
+  "statusCode": 400,
+  "message": ["brand must be a string"],
+  "error": "Bad Request"
+}
+```
+
+### Actualizar un carro (PATCH)
+
+#### DTO de Actualización
+
+```typescript
+// src/cars/DTOs/update-car.dto.ts
+export class UpdateCarDto {
+  @IsString()
+  @IsUUID()
+  @IsOptional()
+  readonly id?: string;
+
+  @IsString({ message: 'La marca debe ser un string' })
+  @IsOptional()
+  readonly brand?: string;
+
+  @IsString({ message: 'El modelo debe ser un string' })
+  @MinLength(3)
+  @IsOptional()
+  readonly model?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1900)
+  @Max(2025)
+  readonly year?: number;
+}
+```
+
+**Características importantes:**
+- Todos los campos son opcionales (`@IsOptional()`)
+- Permite actualizar solo los campos que se envían
+- Valida que el `id` sea UUID si se proporciona
+
+#### Controlador
+
+```typescript
+@Patch(':id')
+updateCar(
+  @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  @Body(ValidationPipe) updateCarDto: UpdateCarDto,
+) {
+  return this.carsService.updateCar(id, updateCarDto);
+}
+```
+
+#### Servicio
+
+```typescript
+updateCar(id: string, updateCarDto: UpdateCarDto) {
+  let carDB = this.findOneById(id);
+
+  // Validar que el id en el body coincida con el de la URL
+  if (updateCarDto.id && updateCarDto.id !== id) {
+    throw new NotFoundException('Car id is not valid inside body');
+  }
+
+  this.cars = this.cars.map((car) => {
+    if (car.id === id) {
+      // Filtrar propiedades undefined para no sobrescribir valores existentes
+      const { id: _, ...updateData } = updateCarDto;
+      const filteredUpdate = Object.fromEntries(
+        Object.entries(updateData).filter(
+          ([_, value]) => value !== undefined,
+        ),
+      );
+
+      carDB = {
+        ...carDB,        // Mantiene valores existentes
+        ...filteredUpdate, // Solo actualiza campos enviados
+        id,              // Preserva el id original
+      };
+      return carDB;
+    }
+    return car;
+  });
+  return carDB;
+}
+```
+
+**Ejemplo de petición (actualizar solo el modelo):**
+```bash
+PATCH /cars/550e8400-e29b-41d4-a716-446655440000
+Content-Type: application/json
+
+{
+  "model": "Fiesta"
+}
+```
+
+**Resultado:** Solo se actualiza el `model`, manteniendo `brand` y `year` originales.
+
+### Borrar un carro (DELETE)
+
+#### Controlador
+
+```typescript
+@Delete(':id')
+deleteCar(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
+  return this.carsService.deleteCar(id);
+}
+```
+
+#### Servicio
+
+```typescript
+deleteCar(id: string) {
+  const car = this.findOneById(id); // Valida que exista
+  
+  if (!car) {
+    throw new NotFoundException(`Car with id ${id} not found`);
+  }
+
+  this.cars = this.cars.filter((car) => car.id !== id);
+  return {
+    message: 'Car deleted successfully',
+    car,
+  };
+}
+```
+
+**Ejemplo de petición:**
+```bash
+DELETE /cars/550e8400-e29b-41d4-a716-446655440000
+```
+
+**Respuesta exitosa:**
+```json
+{
+  "message": "Car deleted successfully",
+  "car": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "brand": "Ford",
+    "model": "Mustang",
+    "year": 2021
+  }
+}
+```
+
+### Estructura de Carpetas para DTOs
+
+```
+src/
+└── cars/
+    ├── cars.controller.ts
+    ├── cars.service.ts
+    ├── cars.module.ts
+    ├── interfaces/
+    │   └── car.interface.ts
+    └── DTOs/
+        ├── create-car.dto.ts
+        └── update-car.dto.ts
+```
+
+**Convenciones:**
+- Los DTOs van en una carpeta `DTOs/` dentro del módulo
+- Las interfaces van en una carpeta `interfaces/`
+- Nombres descriptivos: `create-car.dto.ts`, `update-car.dto.ts`
+
+### Resumen de Conceptos Clave
+
+#### DTOs
+- ✅ Definen la estructura de datos de entrada
+- ✅ Incluyen validación con decoradores
+- ✅ Mejoran la seguridad y type safety
+
+#### UUID
+- ✅ Identificadores únicos y seguros
+- ✅ Se validan con `ParseUUIDPipe`
+- ✅ Se generan con la librería `uuid`
+
+#### ValidationPipe
+- ✅ Valida automáticamente los DTOs
+- ✅ Se puede configurar globalmente
+- ✅ Usa `class-validator` y `class-transformer`
+
+#### Decoradores de Validación
+- ✅ `@IsString()`, `@IsNumber()`, `@IsOptional()`
+- ✅ `@MinLength()`, `@MaxLength()`, `@Min()`, `@Max()`
+- ✅ `@IsUUID()` para validar UUIDs
+
+#### Actualización Parcial (PATCH)
+- ✅ Todos los campos del DTO son opcionales
+- ✅ Solo se actualizan los campos enviados
+- ✅ Se filtran propiedades `undefined` para no sobrescribir valores
+
+---
+
 ## Próximos Pasos
 
-- Validación de datos con DTOs (Data Transfer Objects)
 - Conexión a base de datos (TypeORM, Prisma, etc.)
 - Autenticación y autorización
 - Guards (protección de rutas)
 - Interceptors (transformación de respuestas)
 - Middleware personalizado
+- Swagger/OpenAPI para documentación
 
 ---
 
